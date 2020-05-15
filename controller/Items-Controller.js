@@ -34,8 +34,8 @@ const sendMail = (req, res, next) => {
         db.firebase.database().ref(`car/`).remove()
             .then(resp => {
                 transporter.sendMail({
-                    to: ['oirbl30@gmail.com', 'kiwizontl@gmail.com'],
-                    from: 'oirbl@hotmail.com',
+                    to: ['yourMail@gmail.com'],
+                    from: 'verifiedMail@hotmail.com',
                     subject: `${today} Shop list! `,
                     html: html
                 })
