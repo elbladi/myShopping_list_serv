@@ -6,7 +6,7 @@ const sendgridTransport = require('nodemailer-sendgrid-transport');
 
 const transporter = nodemailer.createTransport(sendgridTransport({
     auth: {
-        api_key: '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'
+        api_key: process.env.MAILER_ID
     }
 }));
 const months = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
