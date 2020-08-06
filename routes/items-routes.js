@@ -15,5 +15,10 @@ router.post('/addToCar/:name', itemsController.addToCar);
 router.post('/removeToCar/:name', itemsController.removeToCar);
 router.post('/sendEmail', itemsController.sendMail);
 router.get('/getCar', itemsController.getCar);
+router.post('/goShop', itemsController.goShop);
+router.post('/setOrder', itemsController.setOrder);
+
+router.get('/getListToShop', itemsController.getListToShop);
+router.patch('/updateOrderedList', itemsController.updateOrderedList);
 
 module.exports = router;

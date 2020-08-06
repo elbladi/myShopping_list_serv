@@ -55,24 +55,62 @@ const sendMail = (req, res, next) => {
     }
 }
 
-const addToCar = (req, res, next) => {
+const addToCar = async (req, res, next) => {
     const name = req.params.name;
     try {
-        db.firebase.database().ref(`car/${name}`).set(name)
-            .then(resp => {
-                res.json({ message: `${name} ADDED TO CAR` })
-            })
-            .catch(err => next(new HttpError(err, 500)))
+
+        let orderedList = await db.firebase.database().ref().child('/orderedList')
+            .once("value")
+            .then(snap => snap.val())
+            .catch(err => next(new HttpError(err.message, 503)))
+
+        const itemToAdd = {
+            "checked": false,
+            "name": name
+        }
+
+        if (orderedList) {
+            orderedList.push(itemToAdd)
+
+            await db.firebase.database().ref(`/orderedList`).set(orderedList)
+                .then(_ => {
+                    res.json({ message: `${name} ADDED TO CAR` })
+                })
+                .catch(err => next(new HttpError(err, 500)))
+
+        } else {
+            await db.firebase.database().ref(`/orderedList`).set([itemToAdd])
+                .then(_ => {
+                    res.json({ message: `${name} ADDED TO CAR` })
+                })
+                .catch(err => next(new HttpError(err, 500)))
+        }
+
+
     } catch (error) {
         return next(new HttpError(error.message, 503));
     }
 }
 
-const removeToCar = (req, res, next) => {
+const removeToCar = async (req, res, next) => {
     const name = req.params.name;
     try {
-        db.firebase.database().ref(`car/${name}`).remove()
-            .then(resp => {
+
+        let orderedList = await db.firebase.database().ref().child('/orderedList')
+            .once("value")
+            .then(snap => snap.val())
+            .catch(err => next(new HttpError(err.message, 503)))
+
+        if (!orderedList) return next(new HttpError(error.message, 503));
+
+        let index = orderedList.findIndex(item => item.name === name);
+        if (index < 0) res.json({ message: 'Nothing to delete' });
+
+        orderedList.splice(index, 1);
+
+        await db.firebase.database().ref().child('/orderedList')
+            .set(orderedList)
+            .then(_ => {
                 res.json({ message: `${name} REMOVED TO CAR` })
             })
             .catch(err => next(new HttpError(err, 500)))
@@ -155,13 +193,19 @@ const deleteItem = async (req, res, next) => {
 
 const getCar = (req, res, next) => {
     try {
-        db.firebase.database().ref().child('/car')
+        db.firebase.database().ref().child('/orderedList')
             .once("value")
             .then(snap => {
-                response = snap.val()
-                res.json({
-                    car: response
-                })
+                if (snap) {
+                    response = [...snap.val()]
+                    res.json({
+                        car: response
+                    })
+                } else {
+                    res.json({
+                        car: []
+                    })
+                }
             })
             .catch(err => next(new HttpError(err.message, 503)))
 
@@ -170,6 +214,74 @@ const getCar = (req, res, next) => {
     }
 }
 
+const goShop = (req, res, next) => {
+    /**
+     * upload the list array
+     */
+
+}
+
+const setOrder = async (req, res, next) => {
+    /**
+     * upload the list array
+     */
+    try {
+        db.firebase.database().ref('/orderedList').set(req.body)
+            .then(_ => {
+                res.status(200).send('Ok');
+            })
+            .catch(err => next(new HttpError(err.message, 503)))
+
+    } catch (error) {
+        return next(new HttpError(err.message, 503))
+    }
+}
+
+const getListToShop = async (req, res, next) => {
+    try {
+        await db.firebase.database().ref().child('/orderedList')
+            .once('value').then(snap => {
+                if (!snap.val()) {
+                    res.json({
+                        items: []
+                    })
+                } else {
+                    res.json({
+                        items: [...snap.val()]
+                    })
+                }
+            }).catch(err => {
+                console.log('ERROR!!')
+                res.json({
+                    message: 'Algo salio mal!'
+                })
+            })
+    } catch (error) {
+        console.log(error.message);
+        return next(new HttpError(error.message), 500);
+    }
+}
+
+const updateOrderedList = async (req, res, next) => {
+    try {
+        await db.firebase.database().ref().child('/orderedList')
+            .set(req.body)
+            .then(_ => {
+                res.json({
+                    message: 'Updated'
+                })
+            })
+            .catch(err => {
+                console.log(err);
+                res.json({
+                    message: 'Algo salio mal!'
+                })
+            })
+    } catch (error) {
+        console.log(error.message);
+        return next(new HttpError(error.message), 500);
+    }
+}
 
 exports.getItems = getItems;
 exports.addItem = addItem;
@@ -178,3 +290,7 @@ exports.sendMail = sendMail;
 exports.addToCar = addToCar;
 exports.removeToCar = removeToCar;
 exports.getCar = getCar;
+exports.goShop = goShop;
+exports.setOrder = setOrder;
+exports.getListToShop = getListToShop;
+exports.updateOrderedList = updateOrderedList;
