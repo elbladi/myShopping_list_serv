@@ -7,11 +7,11 @@ const HttpError = require('./util/http-error');
 const delefeFile = require('./middleware/delete-file');
 const path = require('path');
 
-
 const app = express();
 
 app.use(bodyParser.json());
 app.use(express.static('images'));
+
 // app.use('/images', express.static(path.join('', 'images')));
 
 

@@ -1,5 +1,7 @@
 let firebase = require('firebase/app');
 require('firebase/database');
+require('firebase/firestore');
+require('firebase/storage');
 
 const firebaseConfig = {
     apiKey: process.env.API_KEY,
@@ -11,5 +13,4 @@ const firebaseConfig = {
     appId: process.env.APP_ID
 };
 let app = firebase.initializeApp(firebaseConfig);
-
 exports.firebase = app;
