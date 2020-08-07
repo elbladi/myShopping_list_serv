@@ -1,7 +1,7 @@
 const express = require('express');
 // const checkAuth = require('../middleware/check-auth');
 const itemsController = require('../controller/Items-Controller');
-
+const fileUpload = require('../middleware/file-upload');
 const router = express.Router();
 
 // router.use(checkAuth);
@@ -20,5 +20,7 @@ router.post('/setOrder', itemsController.setOrder);
 
 router.get('/getListToShop', itemsController.getListToShop);
 router.patch('/updateOrderedList', itemsController.updateOrderedList);
+
+router.post('/uploadItem', fileUpload.single('image'), itemsController.uploadItem)
 
 module.exports = router;

@@ -1,5 +1,6 @@
 const HttpError = require('../util/http-error');
 const db = require('../database/config');
+const fs = require('fs');
 const io = require('../socket');
 const nodemailer = require('nodemailer');
 const sendgridTransport = require('nodemailer-sendgrid-transport');
@@ -283,6 +284,27 @@ const updateOrderedList = async (req, res, next) => {
     }
 }
 
+const uploadItem = async (req, res, next) => {
+
+    const { name, user } = req.body;
+    const filePath = req.file.path;
+
+    try {
+        // if (user === 'bladi') fs.createReadStream(filePath).pipe(fs.createWriteStream(`images/beli/${name}.png`));
+        // else fs.createReadStream(filePath).pipe(fs.createWriteStream(`images/bladi/${name}.png`));
+
+    } catch (error) {
+        return next(new HttpError(error.message), 500);
+    }
+
+    await db.firebase.database().ref().child('/items').update({ [name]: 0 })
+        .then(resp => {
+            res.status(201).json({ });
+        })
+        .catch(err => next(new HttpError('Error message jeje'), 500))
+
+}
+
 exports.getItems = getItems;
 exports.addItem = addItem;
 exports.deleteItem = deleteItem;
@@ -294,3 +316,4 @@ exports.goShop = goShop;
 exports.setOrder = setOrder;
 exports.getListToShop = getListToShop;
 exports.updateOrderedList = updateOrderedList;
+exports.uploadItem = uploadItem;
