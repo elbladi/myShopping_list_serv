@@ -3,8 +3,8 @@ const uuid = require('uuid/v1');
 
 const MIME_TYPE_MAP = {
   'image/png': 'png',
-  // 'image/jpeg': 'jpeg',
-  // 'image/jpg': 'jpg'
+  'image/jpeg': 'jpeg',
+  'image/jpg': 'jpg'
 };
 
 const fileUpload = multer({
@@ -14,8 +14,8 @@ const fileUpload = multer({
       cb(null, `images/${req.body.user}`);
     },
     filename: (req, file, cb) => {
-      const ext = MIME_TYPE_MAP[file.mimetype];
-      cb(null, req.body.name + '.' + ext);
+      // const ext = MIME_TYPE_MAP[file.mimetype];
+      cb(null, req.body.name + '.png');
     }
   }),
   fileFilter: (req, file, cb) => {
