@@ -1,9 +1,10 @@
 const HttpError = require('../util/http-error');
 const db = require('../database/config');
+const fs = require('fs');
 const io = require('../socket');
 const nodemailer = require('nodemailer');
 const sendgridTransport = require('nodemailer-sendgrid-transport');
-
+const removd = require('removd');
 const transporter = nodemailer.createTransport(sendgridTransport({
     auth: {
         api_key: process.env.MAILER_ID
@@ -283,6 +284,64 @@ const updateOrderedList = async (req, res, next) => {
     }
 }
 
+
+const uploadItem = async (req, res, next) => {
+
+    const { name, user } = req.body;
+    const filePath = req.file.path;
+
+    try {
+        if (user === 'bladi') fs.createReadStream(filePath).pipe(fs.createWriteStream(`images/beli/${name}.png`));
+        else fs.createReadStream(filePath).pipe(fs.createWriteStream(`images/bladi/${name}.png`));
+
+    } catch (error) {
+        return next(new HttpError(error.message), 500);
+    }
+
+    await db.firebase.database().ref().child('/items').update({ [name]: 0 })
+        .then(_ => {
+            res.status(201).json({});
+        })
+        .catch(err => next(new HttpError('Error message jeje'), 500))
+
+}
+
+
+const removeBackground = async (req, res, next) => {
+
+    const filePath = req.file.path;
+
+    try {
+        const done = await removd.file({
+            deleteOriginal: true,
+            detect: 'product',
+            format: 'png',
+            destination: filePath,
+            source: filePath,
+            apikey: process.env.REMOVE_BG_KEY
+        })
+
+
+        if (done.error) {
+            const path = filePath.split('/');
+            res.json({
+                image: `/${path[1]}/${path[2]}`
+            });
+        } else {
+            const parts = done.destination.split('/');
+            res.json({
+                image: `/tempImg/${parts[parts.length - 1]}`
+            });
+        }
+
+    } catch (error) {
+        console.log('error:')
+        console.log(error)
+        return next(new HttpError(error.message), 500);
+    }
+
+}
+
 exports.getItems = getItems;
 exports.addItem = addItem;
 exports.deleteItem = deleteItem;
@@ -294,3 +353,5 @@ exports.goShop = goShop;
 exports.setOrder = setOrder;
 exports.getListToShop = getListToShop;
 exports.updateOrderedList = updateOrderedList;
+exports.uploadItem = uploadItem;
+exports.removeBackground = removeBackground;
