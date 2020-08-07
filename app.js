@@ -1,6 +1,6 @@
 const express = require('express');
 const bodyParser = require('body-parser');
-
+const fs = require('fs');
 const itemsRoutes = require('./routes/items-routes');
 const loginRoute = require('./routes/login-route');
 const HttpError = require('./util/http-error');

@@ -19,6 +19,7 @@
     "multer": "^1.4.2",
     "nodemailer": "^6.4.6",
     "nodemailer-sendgrid-transport": "^0.2.0",
+    "removd": "^1.1.1",
     "socket.io": "^2.3.0"
   },
   "devDependencies": {
