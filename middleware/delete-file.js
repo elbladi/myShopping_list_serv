@@ -5,7 +5,7 @@ const path = require('path')
 module.exports = async (req, res, next) => {
 
     try {
-        const FOLDER_TO_REMOVE = 'images/tempImg';
+        const FOLDER_TO_REMOVE = '/tempImg';
         await fs.readdir(FOLDER_TO_REMOVE).then(files => {
             if (files.length === 0) return;
             const unlinkPromises = files.map(file => {
