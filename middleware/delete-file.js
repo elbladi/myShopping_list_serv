@@ -8,14 +8,12 @@ module.exports = async (req, res, next) => {
         const FOLDER_TO_REMOVE = '/image/tempImg';
         await fs.readdir(FOLDER_TO_REMOVE).then(files => {
             if (files.length === 0) return;
-            const unlinkPromises = files.map(file => {
+            files.map(file => {
                 const filePath = path.join(FOLDER_TO_REMOVE, file)
-                return fs.unlink(filePath);
-            })
-
-            return Promise.all(unlinkPromises);
+                fs.unlink(filePath);
+            }) 
         }).catch(err => {
-            throw err;
+            next();
         })
 
         next();
