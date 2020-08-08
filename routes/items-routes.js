@@ -25,7 +25,7 @@ router.patch('/updateOrderedList', itemsController.updateOrderedList);
 
 router.post('/uploadItem', fileUpload.single('image'), itemsController.uploadItem)
 
-// router.use(deleteFile)
 router.post('/removeBackground', fileUpload.single('image'), itemsController.removeBackground)
+router.patch('/deleteContent', itemsController.deleteContent)
 
 module.exports = router;

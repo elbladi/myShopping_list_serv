@@ -5,6 +5,7 @@ const io = require('../socket');
 const nodemailer = require('nodemailer');
 const sendgridTransport = require('nodemailer-sendgrid-transport');
 const removd = require('removd');
+const Blob = require('node-fetch');
 const transporter = nodemailer.createTransport(sendgridTransport({
     auth: {
         api_key: process.env.MAILER_ID
@@ -121,74 +122,88 @@ const removeToCar = async (req, res, next) => {
 }
 
 const getItems = async (req, res, next) => {
-    let response;
 
+    let items;
     try {
-        await db.firebase.database().ref().child('/items')
-            .once("value")
-            .then(snap => response = snap.val());
-
+        await db.firebase.firestore().collection('items').get()
+            .then(snapshot => {
+                snapshot.forEach(doc => {
+                    items = {
+                        ...items,
+                        [doc.id]: doc.data()
+                    }
+                });
+            })
     } catch (error) {
         return next(new HttpError(error.message, 500));
     }
 
-    if (!response) {
-        return next(new HttpError('Invalid. Please, try again', 404));
-    };
-    res.json({
-        items: response
-    });
+    res.json(items);
 
 }
 
 const addItem = async (req, res, next) => {
-    const { itemName } = req.body;
-    let response;
+    const { itemId } = req.body;
     let current;
-    try {
-        await db.firebase.database().ref().child(`/items/${itemName}`)
-            .once("value").then(snap => current = snap.val());
+    let ref = db.firebase.firestore().collection('items').doc(itemId);
 
-        await db.firebase.database().ref().update({ [`/items/${itemName}`]: current + 1 }).then(response = true);
+    try {
+        await ref.get().then(doc => {
+            if (!doc.exists) return next(new HttpError(error.message, 503));
+            current = { ...doc.data() };
+        })
     } catch (error) {
         return next(new HttpError(error.message, 503));
     }
 
-    if (!response) {
+    if (!current) {
         return next(new HttpError('Not Updated. Please, try again', 503));
     }
 
-    io.getIO().emit('added', { item: itemName });
+    try {
+        await ref.update({
+            count: current.count + 1
+        }).catch(err => next(new HttpError('Not Updated. Please, try again', 503)))
+    } catch (error) {
+        return next(new HttpError('Not Updated. Please, try again', 503));
+    }
+
+    io.getIO().emit('added', { itemId });
     res.json({
-        message: `${itemName} UPDATED`
+        message: `${current.name} UPDATED`
     })
 
 };
 
 const deleteItem = async (req, res, next) => {
-    const { itemName } = req.body;
-    let response;
+    const { itemId } = req.body;
     let current;
+    let ref = db.firebase.firestore().collection('items').doc(itemId);
+
     try {
-        await db.firebase.database().ref().child(`/items/${itemName}`)
-            .once("value").then(snap => current = snap.val());
-
-        if (current < 1) {
-            return next(new HttpError("NOT ALLOWED", 406));
-        }
-
-        await db.firebase.database().ref().update({ [`/items/${itemName}`]: current - 1 }).then(response = true);
+        await ref.get().then(doc => {
+            if (!doc.exists) return next(new HttpError(error.message, 503));
+            current = { ...doc.data() };
+        })
     } catch (error) {
         return next(new HttpError(error.message, 503));
     }
 
-    if (!response) {
+    if (!current) {
         return next(new HttpError('Not Updated. Please, try again', 503));
     }
 
-    io.getIO().emit('deleted', { item: itemName });
+    try {
+        await ref.update({
+            count: current.count - 1
+        }).catch(err => next(new HttpError('Not Updated. Please, try again', 503)))
+    } catch (error) {
+        return next(new HttpError('Not Updated. Please, try again', 503));
+    }
+
+    io.getIO().emit('deleted', { itemId });
     res.json({
-        message: `${itemName} UPDATED`
+        message: `${current.name} UPDATED`
     })
 }
 
@@ -298,12 +313,16 @@ const uploadItem = async (req, res, next) => {
         return next(new HttpError(error.message), 500);
     }
 
-    await db.firebase.database().ref().child('/items').update({ [name]: 0 })
-        .then(_ => {
-            res.status(201).json({});
-        })
-        .catch(err => next(new HttpError('Error message jeje'), 500))
-
+    try {
+        await db.firebase.firestore().collection('items').add({
+            name: name,
+            count: 0
+        }).then(_ => {
+            res.status(201).json();
+        }).catch(err => next(new HttpError(err.message), 500))
+    } catch (error) {
+        return next(new HttpError(error.message), 500);
+    }
 }
 
 
@@ -342,6 +361,30 @@ const removeBackground = async (req, res, next) => {
 
 }
 
+const deleteContent = async (req, res, next) => {
+    const { itemId, name } = req.body;
+
+    let deleted;
+    try {
+        await db.firebase.firestore().collection('items').doc(itemId).delete()
+            .then(_ => deleted = true)
+            .catch(_ => deleted = false);
+    } catch (error) {
+        deleted = false
+    }
+
+    if (!deleted) return next(new HttpError(error.message), 500);
+
+    try {
+        if (fs.existsSync(`./images/bladi/${name}.png`)) fs.unlink(`images/bladi/${name}.png`, _ => { })
+        if (fs.existsSync(`./images/beli/${name}.png`)) fs.unlink(`images/beli/${name}.png`, _ => { })
+
+    } catch (_) { }
+
+    res.status(200).json({});
+
+}
+
 exports.getItems = getItems;
 exports.addItem = addItem;
 exports.deleteItem = deleteItem;
@@ -355,3 +398,4 @@ exports.getListToShop = getListToShop;
 exports.updateOrderedList = updateOrderedList;
 exports.uploadItem = uploadItem;
 exports.removeBackground = removeBackground;
+exports.deleteContent = deleteContent;
