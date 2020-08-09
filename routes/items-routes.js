@@ -16,7 +16,7 @@ router.patch('/deleteItem', itemsController.deleteItem);
 router.post('/addToCar/:name', itemsController.addToCar);
 router.post('/removeToCar/:name', itemsController.removeToCar);
 router.post('/sendEmail', itemsController.sendMail);
-router.get('/getCar', itemsController.getCar);
+router.get('/getCar/:carId', itemsController.getCar);
 router.post('/goShop', itemsController.goShop);
 router.post('/setOrder', itemsController.setOrder);
 

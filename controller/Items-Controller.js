@@ -207,49 +207,66 @@ const deleteItem = async (req, res, next) => {
     })
 }
 
-const getCar = (req, res, next) => {
-    try {
-        db.firebase.database().ref().child('/orderedList')
-            .once("value")
-            .then(snap => {
-                if (snap) {
-                    response = [...snap.val()]
-                    res.json({
-                        car: response
-                    })
-                } else {
-                    res.json({
-                        car: []
-                    })
-                }
-            })
-            .catch(err => next(new HttpError(err.message, 503)))
+const getCar = async (req, res, next) => {
 
-    } catch (error) {
-
+    const docId = req.params.carId;
+    if (docId === '0') {
+        try {
+            let itemsInList;
+            let carId;
+            await db.firebase.firestore().collection('orderedList').get()
+                .then(snapshot => {
+                    snapshot.forEach(doc => {
+                        itemsInList = doc.data().car;
+                        carId = doc.id
+                    })
+                    res.status(200).json({ car: [...itemsInList], carId });
+                })
+                .catch(err => {
+                    res.status(200).json({ car: [], carId: 0 });
+                })
+        } catch (error) {
+        }
+    } else {
+        try {
+            await db.firebase.firestore().collection('orderedList').doc(docId).get()
+                .then(doc => {
+                    if (doc.exists) {
+                        res.status(200).json({ car: [...doc.data().car], carId: doc.id });
+                    } else {
+                        res.status(200).json({ car: [], carId: 0 });
+                    }
+                }).catch(err => {
+                    res.status(200).json({ car: [], carId: 0 });
+                })
+        } catch (err) {
+        }
     }
+
 }
 
 const goShop = (req, res, next) => {
-    /**
-     * upload the list array
-     */
-
 }
 
 const setOrder = async (req, res, next) => {
     /**
      * upload the list array
      */
+    const { carId, newArray } = req.body;
+    console.log(carId);
+    console.log(newArray);
+
     try {
-        db.firebase.database().ref('/orderedList').set(req.body)
-            .then(_ => {
+        await db.firebase.firestore().collection('orderedList').doc(carId)
+            .update({
+                car: newArray
+            })
+            .then(() => {
                 res.status(200).send('Ok');
             })
             .catch(err => next(new HttpError(err.message, 503)))
-
     } catch (error) {
-        return next(new HttpError(err.message, 503))
+        return next(new HttpError(error.message, 503))
     }
 }
 
