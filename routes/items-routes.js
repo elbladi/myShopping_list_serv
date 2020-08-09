@@ -20,7 +20,6 @@ router.get('/getCar/:carId', itemsController.getCar);
 router.post('/goShop', itemsController.goShop);
 router.post('/setOrder', itemsController.setOrder);
 
-router.get('/getListToShop', itemsController.getListToShop);
 router.patch('/updateOrderedList', itemsController.updateOrderedList);
 
 router.post('/uploadItem', fileUpload.single('image'), itemsController.uploadItem)

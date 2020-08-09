@@ -59,66 +59,100 @@ const sendMail = (req, res, next) => {
 
 const addToCar = async (req, res, next) => {
     const name = req.params.name;
+
+    if (!name) return next(new HttpError('Entradas invalidas', 503));
+
+    let listRef = db.firebase.firestore().collection('orderedList');
+
+    let listExist
+    let items;
     try {
-
-        let orderedList = await db.firebase.database().ref().child('/orderedList')
-            .once("value")
-            .then(snap => snap.val())
-            .catch(err => next(new HttpError(err.message, 503)))
-
-        const itemToAdd = {
-            "checked": false,
-            "name": name
-        }
-
-        if (orderedList) {
-            orderedList.push(itemToAdd)
-
-            await db.firebase.database().ref(`/orderedList`).set(orderedList)
-                .then(_ => {
-                    res.json({ message: `${name} ADDED TO CAR` })
+        await listRef.get()
+            .then(snapshot => {
+                snapshot.forEach(doc => {
+                    listExist = doc.id
+                    items = doc.data().car
                 })
-                .catch(err => next(new HttpError(err, 500)))
-
-        } else {
-            await db.firebase.database().ref(`/orderedList`).set([itemToAdd])
-                .then(_ => {
-                    res.json({ message: `${name} ADDED TO CAR` })
-                })
-                .catch(err => next(new HttpError(err, 500)))
-        }
-
-
+            })
+            .catch(err => {
+                throw err
+            })
     } catch (error) {
-        return next(new HttpError(error.message, 503));
+        return next(new HttpError(error, 503));
+    }
+
+    if (!listExist) { //list dont exist
+        try {
+            await listRef.add({
+                car: [
+                    {
+                        name: name,
+                        checked: false
+                    }
+                ]
+            }).then(docRef => {
+                res.json({ message: `${name} ADDED TO CAR`, docId: docRef.id })
+            })
+                .catch(_ => {
+                    throw err
+                });
+        } catch (error) {
+            return next(new HttpError('Algo salio bad', 503));
+        }
+    } else {
+        try {
+            await listRef.doc(listExist).update({
+                car: [
+                    ...items,
+                    {
+                        name: name,
+                        checked: false
+                    }]
+            }).then(_ => {
+                res.json({ message: `${name} ADDED TO CAR`, docId: listExist })
+            }).catch(err => {
+                throw err;
+            })
+        } catch (error) {
+            return next(new HttpError('Algo salio bad', 503));
+        }
     }
 }
 
 const removeToCar = async (req, res, next) => {
     const name = req.params.name;
+    const { carId } = req.body;
+
+    if (!name || carId === '0') return next(new HttpError('Entradas invalidas!', 503));
+
+    let actualCar;
+    const carRef = db.firebase.firestore().collection('orderedList').doc(carId);
+
     try {
-
-        let orderedList = await db.firebase.database().ref().child('/orderedList')
-            .once("value")
-            .then(snap => snap.val())
-            .catch(err => next(new HttpError(err.message, 503)))
-
-        if (!orderedList) return next(new HttpError(error.message, 503));
-
-        let index = orderedList.findIndex(item => item.name === name);
-        if (index < 0) res.json({ message: 'Nothing to delete' });
-
-        orderedList.splice(index, 1);
-
-        await db.firebase.database().ref().child('/orderedList')
-            .set(orderedList)
-            .then(_ => {
-                res.json({ message: `${name} REMOVED TO CAR` })
+        await carRef.get()
+            .then(doc => {
+                if (doc.exists) actualCar = [...doc.data().car]
+                else next(new HttpError('No se pudo encontrar la lista', 500));
             })
-            .catch(err => next(new HttpError(err, 500)))
     } catch (error) {
         return next(new HttpError(error.message, 503));
     }
+
+    if (!actualCar) return next(new HttpError('Algo salio mal!', 503));
+
+    let newCarList = actualCar.filter(item => item.name !== name);
+
+    try {
+        await carRef.update({
+            car: newCarList
+        })
+            .catch(_ => next(new HttpError('No se pudo actualizar la lista', 500)))
+    } catch (error) {
+        return next(new HttpError(error.message, 503));
+    }
+
+    res.json({ message: `${name} REMOVED TO CAR` })
+
 }
 
 const getItems = async (req, res, next) => {
@@ -253,8 +287,6 @@ const setOrder = async (req, res, next) => {
      * upload the list array
      */
     const { carId, newArray } = req.body;
-    console.log(carId);
-    console.log(newArray);
 
     try {
         await db.firebase.firestore().collection('orderedList').doc(carId)
@@ -270,49 +302,36 @@ const setOrder = async (req, res, next) => {
     }
 }
 
-const getListToShop = async (req, res, next) => {
+const updateOrderedList = async (req, res, next) => {
+
+    const { newList, carId } = req.body;
+
+    let dbRef = db.firebase.firestore().collection('orderedList');
+
+    let createdId
     try {
-        await db.firebase.database().ref().child('/orderedList')
-            .once('value').then(snap => {
-                if (!snap.val()) {
-                    res.json({
-                        items: []
-                    })
-                } else {
-                    res.json({
-                        items: [...snap.val()]
-                    })
-                }
-            }).catch(err => {
-                console.log('ERROR!!')
-                res.json({
-                    message: 'Algo salio mal!'
-                })
+        await dbRef.add({
+            car: [...newList]
+        }).then(docRef => createdId = docRef.id)
+            .catch(err => {
+                throw err;
             })
     } catch (error) {
-        console.log(error.message);
-        return next(new HttpError(error.message), 500);
+        return next(new HttpError(error.message, 503))
     }
-}
 
-const updateOrderedList = async (req, res, next) => {
+    if (!createdId) return next(new HttpError('No se pudo crear nueva lista', 503))
+
     try {
-        await db.firebase.database().ref().child('/orderedList')
-            .set(req.body)
+        await dbRef.doc(carId).delete()
             .then(_ => {
-                res.json({
-                    message: 'Updated'
-                })
+                res.json({ carId: createdId })
             })
             .catch(err => {
-                console.log(err);
-                res.json({
-                    message: 'Algo salio mal!'
-                })
-            })
+                throw err;
+            });
     } catch (error) {
-        console.log(error.message);
-        return next(new HttpError(error.message), 500);
+        return next(new HttpError(error.message, 503))
     }
 }
 
@@ -383,7 +402,7 @@ const deleteContent = async (req, res, next) => {
 
     let deleted;
     try {
-        await db.firebase.firestore().collection('items').doc(itemId).delete()
+        deleted = await db.firebase.firestore().collection('items').doc(itemId).delete()
             .then(_ => deleted = true)
             .catch(_ => deleted = false);
     } catch (error) {
@@ -411,7 +430,6 @@ exports.removeToCar = removeToCar;
 exports.getCar = getCar;
 exports.goShop = goShop;
 exports.setOrder = setOrder;
-exports.getListToShop = getListToShop;
 exports.updateOrderedList = updateOrderedList;
 exports.uploadItem = uploadItem;
 exports.removeBackground = removeBackground;
