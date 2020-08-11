@@ -172,7 +172,23 @@ const getItems = async (req, res, next) => {
         return next(new HttpError(error.message, 500));
     }
 
-    res.json(items);
+    let deleted;
+    try {
+        await db.firebase.firestore().collection('deleted')
+            .get().then(snapshot => {
+                snapshot.forEach(doc => {
+                    deleted = {
+                        ...doc.data(),
+                    }
+                })
+            }).catch(err => { throw err })
+    } catch (error) {
+        deleted = false;
+    }
+
+    if (!deleted) deleted = null;
+
+    res.json({ items, deleted });
 
 }
 
@@ -397,8 +413,71 @@ const removeBackground = async (req, res, next) => {
 
 }
 
+const updateDeletedCollection = async (name) => {
+    let backupId;
+
+    let docId;
+    try {
+        await db.firebase.firestore().collection('deleted').get()
+            .then(snapshot => {
+                snapshot.forEach(doc => {
+                    docId = doc.id
+                });
+            }).catch(err => { throw err })
+    } catch (error) {
+        docId = false;
+    }
+
+    if (docId) {
+        //update
+        try {
+            await db.firebase.firestore().collection('deleted').doc(docId).update({ name: name })
+                .then(_ => backupId = docId)
+                .catch(err => { throw err })
+        } catch (error) {
+            backupId = false;
+        }
+    } else {
+        //create
+        try {
+            await db.firebase.firestore().collection('deleted').add({
+                name: name
+            }).then(resp => {
+                backupId = resp.id
+            }).catch(err => { throw err })
+        } catch (error) {
+            backupId = false
+        }
+    }
+
+    if (!backupId) return next(new HttpError('Backup could not be performed'), 500);
+}
+
+
 const deleteContent = async (req, res, next) => {
     const { itemId, name } = req.body;
+
+    //agregar el item a la collection 'deleted'
+    await updateDeletedCollection(name);
+
+    //copiar la imagen en otro folder 'deleted'
+    try {
+        if (fs.existsSync(`./images/bladi/${name}.png`)) {
+            fs.copyFileSync(`./images/bladi/${name}.png`, `./images/bladi/deleted/${name}.png`, err => {
+                console.log(err);
+                return next(new HttpError('Could not backup bladi image'), 500);
+            })
+        }
+        if (fs.existsSync(`./images/beli/${name}.png`)) {
+            fs.copyFileSync(`./images/beli/${name}.png`, `./images/beli/deleted/${name}.png`, err => {
+                console.log(err);
+                return next(new HttpError('Could not backup beli image'), 500);
+            })
+        }
+
+    } catch (error) {
+        return next(new HttpError('Something went wrong at image backup'), 500);
+    }
 
     let deleted;
     try {
@@ -417,7 +496,83 @@ const deleteContent = async (req, res, next) => {
 
     } catch (_) { }
 
+    io.getIO().emit('deleteContent', { itemId });
     res.status(200).json({});
+
+}
+
+const undoDeleteItem = async (req, res, next) => {
+    const name = req.params.name;
+    if (!name) return next(new HttpError('Invalid input'), 500);
+
+    //copy item image into respective folder (bladi, beli)
+    try {
+        if (fs.existsSync(`./images/bladi/deleted/${name}.png`)) {
+            fs.copyFileSync(`./images/bladi/deleted/${name}.png`, `./images/bladi/${name}.png`, err => {
+                console.log(err);
+                return next(new HttpError('Could not backup bladi image'), 500);
+            })
+        }
+        if (fs.existsSync(`./images/beli/deleted/${name}.png`)) {
+            fs.copyFileSync(`./images/beli/deleted/${name}.png`, `./images/beli/${name}.png`, err => {
+                console.log(err);
+                return next(new HttpError('Could not backup beli image'), 500);
+            })
+        }
+
+    } catch (error) {
+        return next(new HttpError('Error at: copy item image into respective folder'), 500);
+    }
+
+    //insert into items collection
+    let newItemId;
+    try {
+        await db.firebase.firestore().collection('items').add({
+            name: name,
+            count: 0
+        }).then(doc => {
+            newItemId = doc.id
+        }).catch(err => { throw err })
+    } catch (error) {
+        newItemId = false;
+    }
+
+    if (!newItemId) return next(new HttpError('Error at: adding item to items collection'), 500);
+
+    //delete item name from 'delete'collection
+    let docId;
+    try {
+        await db.firebase.firestore().collection('deleted').get()
+            .then(snapshot => {
+                snapshot.forEach(doc => {
+                    docId = doc.id
+                });
+            }).catch(err => {
+                return next(new HttpError('Error at: getting item from deleted collection'), 500);
+            })
+
+        if (!docId) return next(new HttpError('Error at: getting item from deleted collection'), 500);
+
+        await db.firebase.firestore().collection('deleted').doc(docId).delete()
+            .then(_ => {
+                docId = true;
+            }).catch(err => { throw err })
+
+    } catch (error) {
+        docId = false;
+    }
+    if (!docId) return next(new HttpError('Error at: delete item name from "delete" collection'), 500);
+
+    //delete the item image from respective 'deleted' folder;
+    try {
+        if (fs.existsSync(`./images/bladi/deleted/${name}.png`)) fs.unlink(`images/bladi/deleted/${name}.png`, _ => { })
+        if (fs.existsSync(`./images/beli/deleted/${name}.png`)) fs.unlink(`images/beli/deleted/${name}.png`, _ => { })
+    } catch (error) {
+        return next(new HttpError('Error at: delete item image from "delete" folders'), 500);
+    }
+
+    io.getIO().emit('undoDeleteItem', { newItemId, name });
+    res.status(200).json(newItemId);
 
 }
 
@@ -434,3 +589,4 @@ exports.updateOrderedList = updateOrderedList;
 exports.uploadItem = uploadItem;
 exports.removeBackground = removeBackground;
 exports.deleteContent = deleteContent;
+exports.undoDeleteItem = undoDeleteItem;
