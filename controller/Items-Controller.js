@@ -451,6 +451,29 @@ const updateDeletedCollection = async (name) => {
     }
 
     if (!backupId) return next(new HttpError('Backup could not be performed'), 500);
+
+    return backupId;
+}
+
+const deleteItemAfterOneMinute = async (backupId, name) => {
+    //borrar las imagenes de los folders delete
+    try {
+        if (fs.existsSync(`./images/bladi/deleted/${name}.png`)) fs.unlink(`images/bladi/deleted/${name}.png`, _ => { })
+        if (fs.existsSync(`./images/beli/deleted/${name}.png`)) fs.unlink(`images/beli/deleted/${name}.png`, _ => { })
+    } catch (error) { }
+
+    //borrar item de la collection 'deleted'
+    let deleted
+    try {
+        await db.firebase.firestore().collection('deleted').doc(backupId).delete()
+            .then(_ => deleted = true)
+            .catch(err => { throw err })
+    } catch (error) {
+        deleted = false;
+    }
+
+    //avisar que el item se borro para siempre
+    io.getIO().emit('onDeletedForever', { deleted });
 }
 
 
@@ -458,7 +481,7 @@ const deleteContent = async (req, res, next) => {
     const { itemId, name } = req.body;
 
     //agregar el item a la collection 'deleted'
-    await updateDeletedCollection(name);
+    const backupId = await updateDeletedCollection(name);
 
     //copiar la imagen en otro folder 'deleted'
     try {
@@ -495,6 +518,10 @@ const deleteContent = async (req, res, next) => {
         if (fs.existsSync(`./images/beli/${name}.png`)) fs.unlink(`images/beli/${name}.png`, _ => { })
 
     } catch (_) { }
+
+    setTimeout(() => {
+        deleteItemAfterOneMinute(backupId, name);
+    }, 1000 * 60)
 
     io.getIO().emit('deleteContent', { itemId });
     res.status(200).json({});
