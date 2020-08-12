@@ -26,5 +26,6 @@ router.post('/uploadItem', fileUpload.single('image'), itemsController.uploadIte
 
 router.post('/removeBackground', fileUpload.single('image'), itemsController.removeBackground)
 router.patch('/deleteContent', itemsController.deleteContent)
+router.get('/undoDeleteItem/:name', itemsController.undoDeleteItem)
 
 module.exports = router;
