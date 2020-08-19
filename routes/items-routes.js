@@ -24,7 +24,7 @@ router.patch('/updateOrderedList', itemsController.updateOrderedList);
 
 router.post('/uploadItem', fileUpload.single('image'), itemsController.uploadItem)
 
-router.post('/removeBackground', fileUpload.single('image'), itemsController.removeBackground)
+// router.post('/removeBackground', fileUpload.single('image'), itemsController.removeBackground)
 router.patch('/deleteContent', itemsController.deleteContent)
 router.get('/undoDeleteItem/:name', itemsController.undoDeleteItem)
 

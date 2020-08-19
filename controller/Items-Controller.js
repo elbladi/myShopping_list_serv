@@ -4,8 +4,6 @@ const fs = require('fs');
 const io = require('../socket');
 const nodemailer = require('nodemailer');
 const sendgridTransport = require('nodemailer-sendgrid-transport');
-const removd = require('removd');
-const Blob = require('node-fetch');
 const transporter = nodemailer.createTransport(sendgridTransport({
     auth: {
         api_key: process.env.MAILER_ID
@@ -354,21 +352,14 @@ const updateOrderedList = async (req, res, next) => {
 
 const uploadItem = async (req, res, next) => {
 
-    const { name, user } = req.body;
-    const filePath = req.file.path;
-
-    try {
-        if (user === 'bladi') fs.createReadStream(filePath).pipe(fs.createWriteStream(`images/beli/${name}.png`));
-        else fs.createReadStream(filePath).pipe(fs.createWriteStream(`images/bladi/${name}.png`));
-
-    } catch (error) {
-        return next(new HttpError(error.message), 500);
-    }
+    const { name, img_bladi, img_beli } = req.body;
 
     try {
         await db.firebase.firestore().collection('items').add({
-            name: name,
-            count: 0
+            name: name.toLowerCase(),
+            count: 0,
+            img_bladi,
+            img_beli,
         }).then(_ => {
             res.status(201).json();
         }).catch(err => next(new HttpError(err.message), 500))
@@ -378,40 +369,40 @@ const uploadItem = async (req, res, next) => {
 }
 
 
-const removeBackground = async (req, res, next) => {
+// const removeBackground = async (req, res, next) => {
 
-    const filePath = req.file.path;
+//     const filePath = req.file.path;
 
-    try {
-        const done = await removd.file({
-            deleteOriginal: true,
-            detect: 'product',
-            format: 'png',
-            destination: filePath,
-            source: filePath,
-            apikey: process.env.REMOVE_BG_KEY
-        })
+//     try {
+//         const done = await removd.file({
+//             deleteOriginal: true,
+//             detect: 'product',
+//             format: 'png',
+//             destination: filePath,
+//             source: filePath,
+//             apikey: process.env.REMOVE_BG_KEY
+//         })
 
 
-        if (done.error) {
-            const path = filePath.split('/');
-            res.json({
-                image: `/${path[1]}/${path[2]}`
-            });
-        } else {
-            const parts = done.destination.split('/');
-            res.json({
-                image: `/tempImg/${parts[parts.length - 1]}`
-            });
-        }
+//         if (done.error) {
+//             const path = filePath.split('/');
+//             res.json({
+//                 image: `/${path[1]}/${path[2]}`
+//             });
+//         } else {
+//             const parts = done.destination.split('/');
+//             res.json({
+//                 image: `/tempImg/${parts[parts.length - 1]}`
+//             });
+//         }
 
-    } catch (error) {
-        console.log('error:')
-        console.log(error)
-        return next(new HttpError(error.message), 500);
-    }
+//     } catch (error) {
+//         console.log('error:')
+//         console.log(error)
+//         return next(new HttpError(error.message), 500);
+//     }
 
-}
+// }
 
 const updateDeletedCollection = async (name) => {
     let backupId;
@@ -455,56 +446,13 @@ const updateDeletedCollection = async (name) => {
     return backupId;
 }
 
-const deleteItemAfterOneMinute = async (backupId, name) => {
-    //borrar las imagenes de los folders delete
-    try {
-        if (fs.existsSync(`./images/bladi/deleted/${name}.png`)) fs.unlink(`images/bladi/deleted/${name}.png`, _ => { })
-        if (fs.existsSync(`./images/beli/deleted/${name}.png`)) fs.unlink(`images/beli/deleted/${name}.png`, _ => { })
-    } catch (error) { }
-
-    //borrar item de la collection 'deleted'
-    let deleted
-    try {
-        await db.firebase.firestore().collection('deleted').doc(backupId).delete()
-            .then(_ => deleted = true)
-            .catch(err => { throw err })
-    } catch (error) {
-        deleted = false;
-    }
-
-    //avisar que el item se borro para siempre
-    io.getIO().emit('onDeletedForever', { deleted });
-}
-
-
 const deleteContent = async (req, res, next) => {
     const { itemId, name } = req.body;
-
-    //agregar el item a la collection 'deleted'
-    const backupId = await updateDeletedCollection(name);
-
-    //copiar la imagen en otro folder 'deleted'
-    try {
-        if (fs.existsSync(`./images/bladi/${name}.png`)) {
-            fs.copyFileSync(`./images/bladi/${name}.png`, `./images/bladi/deleted/${name}.png`, err => {
-                console.log(err);
-                return next(new HttpError('Could not backup bladi image'), 500);
-            })
-        }
-        if (fs.existsSync(`./images/beli/${name}.png`)) {
-            fs.copyFileSync(`./images/beli/${name}.png`, `./images/beli/deleted/${name}.png`, err => {
-                console.log(err);
-                return next(new HttpError('Could not backup beli image'), 500);
-            })
-        }
-
-    } catch (error) {
-        return next(new HttpError('Something went wrong at image backup'), 500);
-    }
+    let ref = db.firebase.firestore().collection('items').doc(itemId);
 
     let deleted;
     try {
-        deleted = await db.firebase.firestore().collection('items').doc(itemId).delete()
+        deleted = await ref.delete()
             .then(_ => deleted = true)
             .catch(_ => deleted = false);
     } catch (error) {
@@ -513,19 +461,12 @@ const deleteContent = async (req, res, next) => {
 
     if (!deleted) return next(new HttpError(error.message), 500);
 
-    try {
-        if (fs.existsSync(`./images/bladi/${name}.png`)) fs.unlink(`images/bladi/${name}.png`, _ => { })
-        if (fs.existsSync(`./images/beli/${name}.png`)) fs.unlink(`images/beli/${name}.png`, _ => { })
-
-    } catch (_) { }
-
     setTimeout(() => {
-        deleteItemAfterOneMinute(backupId, name);
+        io.getIO().emit('onDeletedForever', { name });
     }, 1000 * 60)
 
     io.getIO().emit('deleteContent', { itemId });
     res.status(200).json({});
-
 }
 
 const undoDeleteItem = async (req, res, next) => {
@@ -614,6 +555,6 @@ exports.goShop = goShop;
 exports.setOrder = setOrder;
 exports.updateOrderedList = updateOrderedList;
 exports.uploadItem = uploadItem;
-exports.removeBackground = removeBackground;
+// exports.removeBackground = removeBackground;
 exports.deleteContent = deleteContent;
 exports.undoDeleteItem = undoDeleteItem;
