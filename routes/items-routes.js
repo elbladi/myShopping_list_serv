@@ -13,7 +13,7 @@ router.patch('/addItem', itemsController.addItem);
 router.patch('/deleteItem', itemsController.deleteItem);
 
 
-router.post('/addToCar/:name', itemsController.addToCar);
+router.post('/addToCar', itemsController.addToCar);
 router.post('/removeToCar/:name', itemsController.removeToCar);
 router.post('/sendEmail', itemsController.sendMail);
 router.get('/getCar/:carId', itemsController.getCar);
@@ -26,6 +26,6 @@ router.post('/uploadItem', fileUpload.single('image'), itemsController.uploadIte
 
 // router.post('/removeBackground', fileUpload.single('image'), itemsController.removeBackground)
 router.patch('/deleteContent', itemsController.deleteContent)
-router.get('/undoDeleteItem/:name', itemsController.undoDeleteItem)
+router.post('/undoDeleteItem', itemsController.undoDeleteItem)
 
 module.exports = router;
